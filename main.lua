@@ -936,7 +936,7 @@ local goblin = actor{
 
 local new_potion = actor{
 	type = "potion",
-	sprite = {},
+	sprite = { n = 80 },
 	sprites = {
 		{ n = 80 },
 		{ n = 81 },
@@ -961,8 +961,7 @@ local new_potion = actor{
 
 		local predictive_coords = { x = x, y = y, width = 8, height = 8, dir = dir }
 		if sgn(dy) == 1 and check_ground(predictive_coords) then
-			dy = 0
-			y = keep_the_change(y)
+			dy, y = 0, keep_the_change(y)
 			self:activate(layer)
 		elseif dy < 0 and check_ceiling(predictive_coords) then
 			dy = 0
