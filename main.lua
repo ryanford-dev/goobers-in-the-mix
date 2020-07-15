@@ -73,9 +73,9 @@ local cam = class{
 		local _ENV = self
 		local tx = target.x
 		self.target = target
-		left_focus = mid(31.5, tx - 32, 927.5)
+		left_focus = mid(34.5, tx - 24, 940.5)
 --    self.left_focus = mid((127 - focus_size) / 2, tx - focus_size / 2, right_bound - focus_size - (127 - focus_size) / 2)
-		right_focus = mid(95.5, tx + 32, 991.5)
+		right_focus = mid(92.5, tx + 24, 988.5)
 --    self.right_focus = mid(left_bound + focus_size + (127 - focus_size) / 2, tx + focus_size / 2, right_bound - (127 - focus_size) / 2)
 		x = max(0, tx - 63)
 		y = max(0, target.y - 63)
@@ -94,9 +94,9 @@ local cam = class{
 		local fn = tdx >= 0 and flr or ceil -- prevent subpixel jank
 		if x ~= mid(left_focus, x, right_focus) then
 			if (not boss_fight) and ((tx < left_focus and tdx < 0) or (tx + 12 > right_focus and tdx > 0)) then
-				left_focus = mid(31.5, left_focus + fn(tdx), 927.5)
+				left_focus = mid(34.5, left_focus + fn(tdx), 940.5)
 --          left_focus = mid(left_bound + ((127 - focus_size) / 2), left_focus + fn(tdx), right_bound - focus_size - ((127 - focus_size) / 2))
-				right_focus = mid(95.5, right_focus + fn(tdx), 991)
+				right_focus = mid(92.5, right_focus + fn(tdx), 988.5)
 --          right_focus = mid(left_bound + focus_size + (127 - focus_size) / 2, right_focus + fn(tdx), right_bound - focus_size / 2)
 				x = mid(0, x + fn(tdx), 896)
 --          x = mid(left_bound, x + fn(tdx), right_bound - 127)
@@ -151,21 +151,27 @@ local gateways do
 		[4] = function()
 			if not (boss_fight or boss_dead) then
 				music(-1, 1000)
-				return new_scene{
-					messages = {
-						demilich_dialog"you! why do you disturb\x0ame? do you seek to take\x0amy star?",
-						goober_dialog"you must be the one\x0ashaking things up down\x0ahere.",
-						demilich_dialog"fool! a fallen star\x0alanded in these caverns.\x0ait belongs to me.",
-						goober_dialog"i don't know what a \x1estar\x1e\x0ais, but i don't think we\x0ahave those in the caverns.",
-						demilich_dialog"you can't have it!\x0ait has great power and\x0ait's mine!",
-						goober_dialog"...",
-						goober_dialog"i'm just trying to find a\x0away out of here.",
-						demilich_dialog("lies! lies! all lies!\x0athe star is mine. now die!", function()
-							music(24)
-							boss_fight = true
-						end)
+				if not heard_boss_dialog then
+					return new_scene{
+						messages = {
+							demilich_dialog"you! why do you disturb\x0ame? do you seek to take\x0amy star?",
+							goober_dialog"you must be the one\x0ashaking things up down\x0ahere.",
+							demilich_dialog"fool! a fallen star\x0alanded in these caverns.\x0ait belongs to me.",
+							goober_dialog"i don't know what a \x1estar\x1e\x0ais, but i don't think we\x0ahave those in the caverns.",
+							demilich_dialog"you can't have it!\x0ait has great power and\x0ait's mine!",
+							goober_dialog"...",
+							goober_dialog"i'm just trying to find a\x0away out of here.",
+							demilich_dialog("lies! lies! all lies!\x0athe star is mine. now die!", function()
+								music(24)
+								heard_boss_dialog = true
+								boss_fight = true
+							end)
+						}
 					}
-				}
+				else
+					music(24)
+					boss_fight = true
+				end
 			end
 		end,
 		[52] = function()
@@ -208,6 +214,14 @@ local treasure_chest = class{
 		local _ENV = self
 		spr(n, x, y, 1, 1, flip)
 	end,
+}
+
+local demonstration = class{
+	draw = function()
+		cls()
+		pc:draw()
+		circfill(pc.x + 8, pc.y - 8, 4, 12)
+	end
 }
 
 local chunks = class{
@@ -383,8 +397,13 @@ local actor = class{
 	end,
 	check_terrain = function(self, flag)
 		local _ENV = self
-		local y = y
-		if (flag == 7) y -= 4
+		local x, y, width = x, y, width
+		if flag == 3 then
+			x += 2
+			width -= 4
+		elseif flag == 7 then
+			y -= 4
+		end
 		return is_flag(x, y + height, flag) or is_flag(x + width, y + height, flag)
 	end,
 	hurt = function(self, o)
@@ -1445,10 +1464,8 @@ local dialog = class{
 		local _ENV = self
 		yield()
 		repeat
-			x1 = cam.x + cam.mx
-			x2 = x1 + 127
-			y1 = max(y1 - (y1 - (cam.y + cam.my + 105)) * 0.2, cam.y + cam.my + 105)
-			y2 = y1 + 22
+			x1, y1 = cam.x + cam.mx, max(y1 - (y1 - (cam.y + cam.my + 105)) * 0.2, cam.y + cam.my + 105)
+			x2, y2 = x1 + 127, y1 + 22
 			yield()
 		until flr(y1) == cam.y + cam.my + 105 or btnp(4)
 		y1 = cam.y + cam.my + 105
@@ -1561,8 +1578,7 @@ new_scene = class{
 			deli(messages, 1)
 		else
 			callback()
-			_G._upd = game_update
-			_G._drw = game_draw
+			_G._upd, _G.drw = game_update, game_draw
 		end
 	end,
 	draw = function(self)
@@ -1781,13 +1797,6 @@ function _init()
 		y = 360,
 		flip = true,
 		callback = function()
-			local demonstration = class{
-				draw = function()
-					cls()
-					pc:draw()
-					circfill(pc.x + 8, pc.y - 8, 4, 12)
-				end
-			}
 			pc.potion_recipe = 1
 			last_checkpoint = "48,352"
 			add(pc.potions, blue_potion)
@@ -1810,13 +1819,6 @@ function _init()
 		y = 480,
 		flip = true,
 		callback = function()
-			local demonstration = class{
-				draw = function()
-					cls()
-					pc:draw()
-					circfill(pc.x + 8, pc.y - 8, 2, 8)
-				end
-			}
 			pc.potion_recipe = 2
 			last_checkpoint = "24,472"
 			add(pc.potions, red_potion)
@@ -1829,7 +1831,25 @@ function _init()
 						add(immediate, demonstration)
 					end),
 					goober_dialog("there! i need to summon\x0athis much! i should\x0aremember how it looks!", function() del(immediate, demonstration) end),
-					goober_dialog"these will make short work\x0aof dungeon pests. it might\x0aeven break some weak walls",
+					goober_dialog("these will make short work\x0aof dungeon pests. it might\x0aeven break some weak walls", function()
+						add(immediate, class{
+							x1 = 0,
+							timer = 3,
+							update = function(self)
+								local _ENV = self
+								x1 = cam.x + cam.mx
+								if timer <= 0 then
+									del(_G.immediate, self)
+								else
+									timer -= dt
+								end
+							end,
+							draw = function(self)
+								rectfill(unpack(split"0,503,1200,511,0"))
+								print("\x83 \x94 to change potion", self.x1 + 24, 505, 13)
+							end
+						})
+					end),
 				}
 			}
 		end,
