@@ -102,8 +102,7 @@ local cam = class{
 --          x = mid(left_bound, x + fn(tdx), right_bound - 127)
 			end
 		end
-		x = mid(0, x, 896)
-		y = keep_the_change(target.y, 128)
+		x, y = mid(0, x, 896), keep_the_change(target.y, 128)
 		shake_level *= 0.9
 		if (shake_level <= 0.1) shake_level = 0
 
@@ -217,10 +216,12 @@ local treasure_chest = class{
 }
 
 local demonstration = class{
-	draw = function()
+	col = 12,
+	size = 4,
+	draw = function(self)
 		cls()
 		pc:draw()
-		circfill(pc.x + 8, pc.y - 8, 4, 12)
+		circfill(pc.x + 8, pc.y - 8, self.size, self.col)
 	end
 }
 
@@ -1110,10 +1111,8 @@ local new_bubble = class{
 			y = pc.y - 5,
 			col = self.col
 		})
-		cam.shake_level = 0
+		cam.shake_level, pc.potion_timeout, flash = 0, true, 2
 		self.potion:pop_effect(pc)
-		pc.potion_timeout = true
-		flash = 2 -- it's a global
 	end,
 	charge = function(self)
 		self.level += dt * 2 * self.speed
@@ -1128,8 +1127,7 @@ local new_bubble = class{
 	end,
 	update = function(self, layer)
 		local potion, _ENV = pc.potions[pc.potion_recipe], self
-		x = pc.x + 6
-		y = pc.y - 5
+		x, y = pc.x + 6, pc.y - 5
 		if potion then
 			if not charging then
 				if flr(level) < potion.brew_length then
@@ -1233,8 +1231,7 @@ local player = goblin{
 		if not grounded then
 			if jumping then
 				if not jump and dy < 0 and jump_height < jump_max then
-					jumping = false
-					jump_height = 0
+					jumping, jump_height = false, 0
 					dy /= 2
 				elseif jump and jump_height < jump_max then
 					jump_height = min(jump_height + dt, jump_max)
@@ -1245,8 +1242,7 @@ local player = goblin{
 			if (not recoil) self:set_anim"3"
 			dy += 0.5 -- gravity
 		elseif jump and not jump_timeout then
-			jumping = true
-			jump_timeout = true
+			jumping, jump_timeout = true, true
 			dy -= 5
 			self:set_anim"3"
 			sfx"19,0"
@@ -1275,9 +1271,7 @@ local player = goblin{
 
 		if sgn(dy) == 1 and check_ground(predictive_coords) then -- shave a pixel on either side to prevent climbing
 
-			jump_height = 0
-			jumping = 0
-			grounded = true
+			jump_height, jumping, grounded = 0, 0, true
 			local in_water = check_terrain(predictive_coords, 4)
 
 			if (recoil) dx = 0
@@ -1299,10 +1293,8 @@ local player = goblin{
 
 			dy = 0
 		elseif dy < 0 and check_ceiling(predictive_coords) then
-			jumping = false
+			jumping, dy, y = false, 0, ceil(y / 8) * 8
 			sfx"22"
-			dy = 0
-			y = ceil(y / 8) * 8
 			if (grounded) sfx(-1, 0)
 		end
 
@@ -1323,14 +1315,12 @@ local player = goblin{
 		if abs(dx) > 0 and check_forward(predictive_coords, 1) then
 			local dir = dir
 			if (recoil) dir *= -1 -- facing one dir traveling another
-			local fn = dir == 1 and flr or ceil
-			local offset do
-				if recoil and sgn(x - old_x) ~= dir then
-					offset = dir == 1 and 8 or -6
-				else
-					offset = dir == -1 and 0 or 3
-					-- offset = width / -8 % 1 * 8 -- (3)
-				end
+			local fn, offset = dir == 1 and flr or ceil
+			if recoil and sgn(x - old_x) ~= dir then
+				offset = dir == 1 and 8 or -6
+			else
+				offset = dir == -1 and 0 or 3
+				-- offset = width / -8 % 1 * 8 -- (3)
 			end
 			dx = 0
 			x = fn(x / 8) * 8 + offset
@@ -1380,8 +1370,7 @@ local player = goblin{
 			self:throw_potion()
 			throw_charge = 0
 		elseif bubble then
-			bubble.charging = false
-			cam.shake_level = 0
+			bubble.charging, cam.shake_level = false, 0
 		end
 
 		if not is_frozen then
@@ -1392,7 +1381,7 @@ local player = goblin{
 
 		draw_sprite = function(self)
 			if (self.frozen > 0) pal{[0] = 1, unpack(split"1,13,12")}
-			sspr(unpack{ sprite_n[1], sprite_n[2], 13, 16, x, y, 13, 16, dir == -1 })
+			sspr(sprite_n[1], sprite_n[2], 13, 16, x, y, 13, 16, dir == -1)
 			pal{[0] = 0, unpack(split"1,2,3")}
 		end
 
@@ -1402,8 +1391,7 @@ local player = goblin{
 		end
 
 		do
-			local has_potion = potion_recipe and potions[potion_recipe] or nil
-			local amount = "\88" .. (potion and "1" or "0")
+			local has_potion, amount = potion_recipe and potions[potion_recipe] or nil, "\88" .. (potion and "1" or "0")
 
 			function draw_hud(self)
 				local camx, mx, camy, my = cam.x, cam.mx, cam.y, cam.my
@@ -1693,7 +1681,7 @@ win_draw = function()
 		spr(6, i * 8 - t() * 24 % 128, 119)
 		pal(split"1,2,3,4,5")
 	end
-	sspr(split"0,13,26,39,52,65,78,91"[flr(t() * 12 % 8) + 1], 48, 13, 16, 56, 103)
+	sspr(split"0,13,26,39,52,65,78,91"[flr(t() * 12 % 8) + 1], unpack(split"48,13,16,56,103"))
 	for i = 1, #letters do
 		print(letters[i], center"congratulations!" + 4 * (i - 1), 32 + sin(t() + i * (1 / #letters)) * 1.5, rnd(split"9,10,11,12,13,14"))
 	end
@@ -1712,6 +1700,8 @@ function _init()
 	title, last_checkpoint, flash, deaths, game_time, time_now, background, foreground, front, immediate = new_title(), "16,208", 0, 0, 0, 0, unpack(ui.layers)
 
 	pc = player{
+		-- x = 136,
+		-- y = 440,
 		x = 16,
 		y = 208,
 	}
@@ -1785,8 +1775,7 @@ function _init()
 					end),
 					goober_dialog("i don't know what it does\x0abut maybe it can at least\x0ahelp me get out of here", function()
 						del(front, star)
-						has_star = true
-						last_checkpoint = "952,224"
+						has_star, last_checkpoint = true, "952,224"
 					end)
 				}
 			}
@@ -1797,9 +1786,9 @@ function _init()
 		y = 360,
 		flip = true,
 		callback = function()
-			pc.potion_recipe = 1
-			last_checkpoint = "48,352"
+			pc.potion_recipe, last_checkpoint = 1, "48,352"
 			add(pc.potions, blue_potion)
+			local demonstration = demonstration
 			return new_scene{
 				messages = {
 					goober_dialog"there's a scroll inside!",
@@ -1819,9 +1808,9 @@ function _init()
 		y = 480,
 		flip = true,
 		callback = function()
-			pc.potion_recipe = 2
-			last_checkpoint = "24,472"
+			pc.potion_recipe, last_checkpoint = 2, "24,472"
 			add(pc.potions, red_potion)
+			local demonstration = demonstration{ size = 2, col = 8 }
 			return new_scene{
 				messages = {
 					goober_dialog"there's a scroll inside!",
