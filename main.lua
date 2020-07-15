@@ -1143,10 +1143,8 @@ local player = goblin{
 	invuln = 0,
 	accx = 15,
 	max_speed = 2.5,
-	jump_charge = 0,
-	jump_grace = 0,
-	min_jump = 2,
-	max_jump = 5,
+	jump_height = 0,
+	jump_max = 0.3,
 	throw_charge = 0,
 	potion = false,
 	potions = {},
@@ -1161,8 +1159,6 @@ local player = goblin{
 		invuln += 1
 		frozen = 0
 		recoil = true
-		jump_charge = 0
-		jump_timeout = true
 		self:set_anim"4"
 		if (o.dir) dir = o.dir
 		sfx"21"
@@ -1207,11 +1203,7 @@ local player = goblin{
 		local is_frozen, old_x = frozen > 0, x
 		local left, right, up, down, jump, throw = btn(0) and not is_frozen, btn(1) and not is_frozen,  btnp(2), btnp(3), btn(4) and not is_frozen, btn(5)
 		grounded, anim, sprite_n, potion_recipe = self:check_ground(), anim or anim_state.idle, sprite_n or {}, potion_recipe
-
-		if not jump then
-			jump_timeout = false
-			jump_grace = 0
-		end
+		if (not jump) jump_timeout = false
 
 		if not recoil then
 			if (left) dx -= accx * dt
@@ -1220,49 +1212,29 @@ local player = goblin{
 		end
 
 		if not grounded then
-			if (not recoil) self:set_anim"3"
-			jump_charge = 0
-			dy += 0.5 -- gravity
-			if jump and not jump_timeout then
-				-- add a little leeway for preemptive jump charging for responsivity
-				if jump_grace == 0 then
-					jump_grace += 1
-					jump_charge += min_jump
-				elseif jump_grace < 5 then
-					jump_grace += 1
-					jump_charge += 30 * dt
-				else
-					jump_grace = 0
-					jump_charge = 0
-					jump_timeout = true
+			if jumping then
+				if not jump and dy < 0 and jump_height < jump_max then
+					jumping = false
+					jump_height = 0
+					dy /= 2
+				elseif jump and jump_height < jump_max then
+					jump_height = min(jump_height + dt, jump_max)
+				elseif jump and jump_height == jump_max then
+					jumping = false
 				end
 			end
+			if (not recoil) self:set_anim"3"
+			dy += 0.5 -- gravity
+		elseif jump and not jump_timeout then
+			jumping = true
+			jump_timeout = true
+			dy -= 5
+			self:set_anim"3"
+			sfx"19,0"
 		else
-			if jump and not jump_timeout then
-				if btnp(4) then
-					jump_charge += min_jump
-				elseif jump_charge >= max_jump then
-					jump_grace = 0
-					dy -= max_jump
-					jump_timeout = true
-					self:set_anim"3"
-					sfx"19,0"
-				elseif jump_charge > 0 and jump_charge < max_jump then
-					jump_charge = min(max_jump, jump_charge + 30 * dt)
-				elseif jump_chage == 0 then
-					jump_charge += min_jump
-				end
-			elseif jump_charge > 0 then
-				jump_grace = 0
-				dy -= mid(min_jump, jump_charge, max_jump)
-				jump_timeout = true
-				self:set_anim"3"
-				sfx"19,0"
-			else
-				if not (left or right) then
-					dx *= (is_frozen and 0.94 or 0.8) -- slide if frozen while running
-					if (abs(dx) < 0.1) dx = 0
-				end
+			if not (left or right) then
+				dx *= (is_frozen and 0.94 or 0.8) -- slide if frozen while running
+				if (abs(dx) < 0.1) dx = 0
 			end
 		end
 
@@ -1284,6 +1256,8 @@ local player = goblin{
 
 		if sgn(dy) == 1 and check_ground(predictive_coords) then -- shave a pixel on either side to prevent climbing
 
+			jump_height = 0
+			jumping = 0
 			grounded = true
 			local in_water = check_terrain(predictive_coords, 4)
 
@@ -1306,10 +1280,10 @@ local player = goblin{
 
 			dy = 0
 		elseif dy < 0 and check_ceiling(predictive_coords) then
+			jumping = false
 			sfx"22"
 			dy = 0
 			y = ceil(y / 8) * 8
-			jump_charge = 0
 			if (grounded) sfx(-1, 0)
 		end
 
