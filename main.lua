@@ -904,9 +904,9 @@ local spawnpoint = class{
 			end
 		end
 		function self.draw(self)
-			if (not timeout) palt(2, true)
+			if (not timeout) palt(0b0010000000000010)
 			spr(n, self.x, self.y)
-			palt(2, false)
+			palt(0b0000000000000010)
 		end
 	end,
 }
@@ -1398,10 +1398,10 @@ local player = goblin{
 				local heart_x, heart_y = camx + mx, camy + my
 
 				for i = 1, max_health do
-					if (i > health) palt(8, true)
+					if (i > health) palt(0b0000000010000010)
 					spr(65, heart_x + 9 * (i - 1), heart_y)
 				end
-				palt(8, false)
+				palt(0b000000000000010)
 
 				if potion_recipe then
 					pal{ [12] = (has_potion and has_potion.col), [13] = 1 }
@@ -1599,8 +1599,7 @@ local function new_title()
 		local y, t = -8, 0
 		music(1)
 		yield()
-		palt(0, false)
-		palt(14, true)
+		palt(0b000000000000010)
 		yield()
 		repeat
 			y = min(y + (41 - y) * .1, 40)
@@ -1647,8 +1646,7 @@ end
 game_draw = function()
 	if flash == 0 then
 		cls()
-		palt(0, false)
-		palt(14, true)
+		palt(0b000000000000010)
 		cam:draw()
 		map(unpack(split"0,0,0,0,256,64"))
 		ui:draw()
@@ -1672,22 +1670,23 @@ win_update = function()
 end
 
 win_draw = function()
-	local str, letters = "", split("congratulations!", "")
+	local str = "time: " .. game_time
 	cls()
-	camera(0, 0)
-	palt(14, true)
+	camera()
+	palt(0b000000000000010)
 	for i = 0, 255 do
 		pal(split"1,2,3,4,3")
 		spr(6, i * 8 - t() * 24 % 128, 119)
 		pal(split"1,2,3,4,5")
 	end
 	sspr(split"0,13,26,39,52,65,78,91"[flr(t() * 12 % 8) + 1], unpack(split"48,13,16,56,103"))
-	for i = 1, #letters do
-		print(letters[i], center"congratulations!" + 4 * (i - 1), 32 + sin(t() + i * (1 / #letters)) * 1.5, rnd(split"9,10,11,12,13,14"))
+	-- for i = 1, #letters do
+	--    print(letters[i], center"congratulations!" + 4 * (i - 1), 32 + sin(t() + i * (1 / #letters)) * 1.5, rnd(split"9,10,11,12,13,14"))
+	for i = 1, 16 do
+		print(sub("congratulations!", i, i), 32 + 4 * (i - 1), 32 + sin(t() + i * 0.0625) * 1.5, rnd(split"9,10,11,12,13,14"))
 	end
 	-- print("congratulations!", center"congratulations" - 2, 32, rnd(split"9,10,11,12,13,14"))
-	print("you escaped the caverns", center"you escaped the caverns", 48, 13)
-	str = "time: " .. game_time
+	print("you escaped the caverns", 18, 48, 13)
 	print(str, center(str), 64, 9)
 	print("time:", 6)
 	print("deaths: " .. deaths, center("deaths: " .. deaths), 80, 9)
@@ -1695,7 +1694,7 @@ win_draw = function()
 end
 
 function _init()
-	camera(0, 0)
+	camera()
 	ui = new_ui()
 	title, last_checkpoint, flash, deaths, game_time, time_now, background, foreground, front, immediate = new_title(), "16,208", 0, 0, 0, 0, unpack(ui.layers)
 
@@ -1709,12 +1708,9 @@ function _init()
 	cam:attach(pc)
 	-- entrance
 	add(background, actor{ -- goblin boss
-		x = 160,
-		y = 232,
-		active = true,
 		update = function(self)
-			if self.active then
-				if same_screen(pc.y, self.y) and abs(pc.x - self.x) < 20 and pc.grounded then
+			if not self.done then
+				if same_screen(pc.y, 232) and abs(pc.x - 160) < 20 and pc.grounded then
 					pc.dx = 0
 					return new_scene{
 						messages = {
@@ -1728,7 +1724,7 @@ function _init()
 							browngob_dialog"ok. goodluck!"
 						},
 						callback = function()
-							self.active = false
+							self.done = true
 							for i = 0, 3 do
 								mset(22, 27 + i, 0)
 							end
@@ -1740,7 +1736,7 @@ function _init()
 		end,
 		draw = function(self)
 			pal(3, 5)
-			sspr(16, 32, 13, 16, self.x, self.y, 13, 16, true)
+			sspr(16, 32, 13, 16, 160, 232, 13, 16, true)
 			pal(3, 3)
 		end,
 	})
@@ -1750,13 +1746,30 @@ function _init()
 	for coords in all(split("704,112;790,240;408,240;800,368;440,496", ";")) do
 		add(background, ratspawn(split(coords)))
 	end
-	add(background, ratspawn{ unit_type = rat{ max_stamina = 1.93 }, 720, 368 })
+	add(background, ratspawn{ unit_type = rat{ max_stamina = 1.85 }, 720, 368 })
 	add(background, batspawn(split"532,144"))
 	add(background, batspawn{ unit_type = bat{ accy = 6, sight_range_y = 40 }, 800, 272 })
 	add(background, batspawn{ unit_type = bat{ accy = 6, sight_range_y = 30 }, 608, 272 })
 	add(background, batspawn{ unit_type = bat{ accy = 9 }, 552, 296 })
 	add(background, batspawn{ unit_type = bat{ accy = 7.5 }, 776, 440 })
 	add(foreground, demilich{ x = 90, y = 90 })
+	add(background, treasure_chest{
+		x = 443,
+		y = 360,
+		callback = function()
+			return new_scene{
+				messages = {
+					goober_dialog"there's some healing salve\x0ainside",
+					goober_dialog"i feel healthier than\x0abefore"
+				},
+				callback = function()
+					pc.max_health += 1
+					pc.health += 1
+					last_checkpoint = "443,352"
+				end,
+			}
+		end
+	})
 	add(background, treasure_chest{
 		x = 952,
 		y = 232,
