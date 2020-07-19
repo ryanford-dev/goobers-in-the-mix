@@ -1760,11 +1760,10 @@ function _init()
 			return new_scene{
 				messages = {
 					goober_dialog"there's some healing salve\x0ainside",
-					goober_dialog"i feel healthier than\x0abefore"
+					goober_dialog"i feel refreshed"
 				},
 				callback = function()
-					pc.max_health += 1
-					pc.health += 1
+					pc.health = min(pc.max_health, pc.health + 1)
 					last_checkpoint = "443,352"
 				end,
 			}
