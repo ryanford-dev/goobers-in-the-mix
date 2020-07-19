@@ -1306,12 +1306,6 @@ local player = goblin{
 			-- return self:update()
 		end
 
-		if (check_forward(predictive_coords, 6)) then
-			local gate_no = x \ 8 + (sgn(dx) > 0 and 2 or 0)
-			local gate = gateways[gate_no]
-			if (gate and not (gate_no == 4 and (boss_fight or boss_dead))) return gate()-- breaking out with return
-		end
-	
 		if abs(dx) > 0 and check_forward(predictive_coords, 1) then
 			local dir = dir
 			if (recoil) dir *= -1 -- facing one dir traveling another
@@ -1324,6 +1318,12 @@ local player = goblin{
 			end
 			dx = 0
 			x = fn(x / 8) * 8 + offset
+		end
+
+		if (check_forward(predictive_coords, 6)) then
+			local gate_no = x \ 8 + (sgn(dx) > 0 and 2 or 0)
+			local gate = gateways[gate_no]
+			if (gate and not (gate_no == 4 and (boss_fight or boss_dead))) return gate()-- breaking out with return
 		end
 
 		if grounded and dy >= 0 then
