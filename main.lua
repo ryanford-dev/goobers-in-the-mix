@@ -73,20 +73,16 @@ local cam = class{
 		local _ENV = self
 		local tx = target.x
 		self.target = target
-		left_focus = mid(34.5, tx - 24, 940.5)
+		left_focus, right_focus, x, y = mid(34.5, tx - 24, 940.5), mid(92.5, tx + 24, 988.5), max(0, tx - 63),  max(0, target.y - 63)
 --    self.left_focus = mid((127 - focus_size) / 2, tx - focus_size / 2, right_bound - focus_size - (127 - focus_size) / 2)
-		right_focus = mid(92.5, tx + 24, 988.5)
 --    self.right_focus = mid(left_bound + focus_size + (127 - focus_size) / 2, tx + focus_size / 2, right_bound - (127 - focus_size) / 2)
-		x = max(0, tx - 63)
-		y = max(0, target.y - 63)
 	end,
 	update = function(self)
 		local _ENV = self
 		local tx, tdx = target.x, target.dx
 
 		if shake_level > 0 then
-			mx = rnd_range"10,5" / 10 * shake_level
-			my = rnd_range"10,5" / 10 * shake_level
+			mx, my = rnd_range"10,5" / 10 * shake_level, rnd_range"10,5" / 10 * shake_level
 		else
 			mx, my = 0, 0
 		end
@@ -94,11 +90,9 @@ local cam = class{
 		local fn = tdx >= 0 and flr or ceil -- prevent subpixel jank
 		if x ~= mid(left_focus, x, right_focus) then
 			if (not boss_fight) and ((tx < left_focus and tdx < 0) or (tx + 12 > right_focus and tdx > 0)) then
-				left_focus = mid(34.5, left_focus + fn(tdx), 940.5)
+				left_focus, right_focus, x = mid(34.5, left_focus + fn(tdx), 940.5), mid(92.5, right_focus + fn(tdx), 988.5), mid(0, x + fn(tdx), 896)
 --          left_focus = mid(left_bound + ((127 - focus_size) / 2), left_focus + fn(tdx), right_bound - focus_size - ((127 - focus_size) / 2))
-				right_focus = mid(92.5, right_focus + fn(tdx), 988.5)
 --          right_focus = mid(left_bound + focus_size + (127 - focus_size) / 2, right_focus + fn(tdx), right_bound - focus_size / 2)
-				x = mid(0, x + fn(tdx), 896)
 --          x = mid(left_bound, x + fn(tdx), right_bound - 127)
 			end
 		end
@@ -106,7 +100,7 @@ local cam = class{
 		shake_level *= 0.9
 		if (shake_level <= 0.1) shake_level = 0
 
-		local _x, _y = mid(0, x, 896) + mx, y + my
+		_x, _y = mid(0, x, 896) + mx, y + my
 --    local _x, _y = mid(0, self.x, self.right_bound - 127) + mx, self.y + my
 		draw = function(self)
 			camera(_x, _y)
@@ -162,8 +156,7 @@ local gateways do
 							goober_dialog"i'm just trying to find a\x0away out of here.",
 							demilich_dialog("lies! lies! all lies!\x0athe star is mine. now die!", function()
 								music(24)
-								heard_boss_dialog = true
-								boss_fight = true
+								heard_boss_dialog, boss_fight = true, true
 							end)
 						}
 					}
@@ -248,8 +241,7 @@ local chunks = class{
 			chunk.y += chunk.dy * dt
 			chunk.dy += dt * 150
 			if is_flag(chunk.x + 1, chunk.y + 3, 0) then
-				chunk.dy = 0
-				chunk.dx = 0
+				chunk.dy, chunk.dx = 0, 0
 			end
 		end)
 		if (#chunks == 0) del(layer, self)
@@ -363,7 +355,7 @@ local torch = class{
 		self.n = flr(time() * 4 % 2) ~= 0 and 32 or 16
 	end,
 	draw = function(self)
-		local ns = { 1, 33, 17, 33, self.n, 33, 2, 33, 18 }
+		local ns = split("1,33,17,33," .. self.n .. ",33,2,33,18")
 		for i = 1, #ns do
 			local n = i - 1
 			spr(ns[i], self.x + 8 * n \ 3, self.y + 8 * (n % 3))
@@ -381,6 +373,7 @@ local actor = class{
 	max_speed = 1,
 	health = 1,
 	frozen = 0,
+	invuln = 0,
 	check_ground = function(self)
 		local _ENV = self
 		return is_flag(x, y + height, 0) or is_flag(x + width - 1, y + height, 0)
@@ -410,12 +403,16 @@ local actor = class{
 	hurt = function(self, o)
 		local _ENV = self
 		o = o or {}
-		dx = o.dx or 5 * (o.x and sgn(x - o.x) or dir * -1)
-		dy = (o.dy or -3)
+		dx, dy, frozen, recoil = o.dx or 5 * (o.x and sgn(x - o.x) or dir * -1), (o.dy or -3), 0, true
 		health -= 1
-		frozen = 0
-		recoil = true
 		if (o.dir) dir = o.dir
+	end,
+	check_invuln = function(self)
+		local _ENV = self
+		if invuln > 0 then
+			invuln = max(0, invuln - dt)
+			if ((flr(time() * 24 % 24) + 1) % 4 == 0) draw_sprite = noop
+		end
 	end,
 	set_anim = function(self, state)
 		self.anim = self.anim_state[tonum(state)]
@@ -450,8 +447,7 @@ lavatile = actor{
 	init = function(self)
 		self.init = function(self)
 			local _ENV = self
-			x = _x * 8
-			y = _y * 8
+			x, y = _x * 8, _y * 8
 			mset(_x, _y, 12)
 		end
 	end,
@@ -465,7 +461,7 @@ lavatile = actor{
 	freeze = function(self)
 		self.frozen = 4
 		mset(self._x, self._y, 13)
-	end
+	end,
 }
 
 local rat = actor{
@@ -497,8 +493,7 @@ local rat = actor{
 			-- local diff_x, same_level, anchordiff = abs(tx - (x + width / 2)), y \ 127 == ty \ 127, anchorx - x
 			if chasing and same_level then
 				if diff_x > 180 or abs(ty - y) > 120 then
-					chasing = false
-					dir = sgn(anchordiff)
+					chasing, dir = false, sgn(anchordiff)
 					if (abs(anchordiff) > 10) dx += accx * dt * dir
 				elseif diff_x > 8 then
 					dx += accx * dt * (left and -1 or 1)
@@ -527,23 +522,19 @@ local rat = actor{
 
 		if (not grounded)	dy += 0.5 -- gravity
 
-		dx = mid(-max_speed, dx, max_speed)
-		dy = mid(-5, dy, 5)
+		dx, dy = mid(-max_speed, dx, max_speed), mid(-5, dy, 5)
 		x += dx
 		y += dy
 
 		local predictive_coords = { x = x, y = y, width = 8, height = 8, dir = dir }
 		if (not dead) and sgn(dy) == 1 and check_ground(predictive_coords) then
-			grounded = true
-			y = keep_the_change(y)
-			dy = 0
+			grounded, y, dy = true, keep_the_change(y), 0
 		end
 
 		if (not dead or dx == 0) and check_forward(predictive_coords, 1) then
 			if (recoil) dir *= -1 -- facing one dir traveling another
 			local fn = dir == 1 and flr or ceil
-			dx = 0
-			x = fn(x / 8) * 8
+			dx, x = 0, fn(x / 8) * 8
 		end
 
 		if flr(old_x) ~= flr(x) and (left or right) then
@@ -581,7 +572,7 @@ local rat = actor{
 }
 
 local bat = actor{
-	type = "enemy",
+	type = "bat",
 	anim_state = {
 		{ speed = 1, { n = 30, offset_x = 1 } },
 	-- idle = { speed = 1, { n = 30, offset_x = 1 } },
@@ -620,30 +611,22 @@ local bat = actor{
 		if not (dead or is_frozen) then
 			if perched and abs(tx - x) < 22 and ty - y > 0 and ty - y < sight_range_y and not swooping then -- dive
 				self:swoop{ x = tx, y = ty }
-				swooping = true
-				perched = false
-				swoop_fn = tx < x and function(x) return cos(x) * -1 end or cos
+				swooping, perched, swoop_fn = true, false, tx < x and function(x) return cos(x) * -1 end or cos
 			elseif swooping and flutter == 0 and dy <= 0 then -- attack
-				swooping = false
 				flutter += dt
-				dx = accx * 9 * swoop_fn(flutter)
-				dy = swoop_fn(2 * flutter)
+				swooping, dx, dy = false,accx * 9 * swoop_fn(flutter), swoop_fn(2 * flutter)
 			elseif flutter > 0 and flutter < attack_length then -- figure 8
 				flutter += dt
-				dx = accx * 9 * swoop_fn(flutter)
-				dy = swoop_fn(2 * flutter)
+				dx, dy = accx * 9 * swoop_fn(flutter), swoop_fn(2 * flutter)
 			elseif flutter >= attack_length then -- done
-				flutter = 0
-				dy = 0
-				dx = 0
+				flutter, dy, dx = 0, 0, 0
 			elseif not perched then -- return
 				local diff = anchorx - x
 				if (abs(diff) > 1) dx += accx * dt * sgn(diff)
 				dx = min(dx, anchorx - x)
 			end
 		elseif is_frozen then
-			swooping = false
-			flutter = 0
+			swooping, flutter = false, 0
 		end
 
 		dx = mid(-1.5, dx, 1.5)
@@ -654,25 +637,19 @@ local bat = actor{
 		if (not dead) and sgn(dy) == 1 and check_ground{ x = x, y = y, width = 7, height = 8 } then
 		-- if (not dead) and sgn(dy) == 1 and self.check_ground{ x = x, y = y, width = 7, height = 8 - 1 } then
 			if is_frozen then
-				grounded = true
-				perched = false
+				grounded, perched = true, false
 				dx *= 0.8
 			end
 
-			y = keep_the_change(y)
-			dy = -0.5
+			y, dy = keep_the_change(y), -0.5
 		elseif dy <= 0 and check_ceiling{ x = x, y = y, width = 7 } then
-			dy = 0
-			dx = 0
-			perched = true
-			y = ceil(y / 8) * 8
+			dy, dx, perched, y = 0, 0, true, ceil(y / 8) * 8
 		end
 
 		if (not dead) and abs(dx) > 0 and check_forward({ x = x, y = y, width = 7, height = 8, dir = dir }, 1) then
 		-- if (not dead) and abs(dx) > 0 and self.check_wall{ x = x, y = y, width = 8, height = height, dir = dir } then
 			local fn = dir == 1 and flr or ceil
-			dx = 0
-			x = keep_the_change(x)
+			dx, x = 0, keep_the_change(x)
 		end
 
 		self:set_anim(perched and "1" or "2")
@@ -705,8 +682,7 @@ local projectile = actor{
 	init = function(self)
 		self.init = function(self)
 			local _ENV = self
-			hurt = activate
-			target_x, target_y = target.x + 8, target.y + 8
+			hurt, target_x, target_y = activate, target.x + 8, target.y + 8
 			distance_x, distance_y = target_x - x, target_y - y
 		end
 	end,
@@ -744,6 +720,27 @@ local projectile = actor{
 	end,
 }
 
+local new_tip = class{
+	timer = 2,
+	x1 = 0,
+	y1 = 0,
+	update = function(self)
+		local _ENV = self
+		x1, y2 = cam.x, cam.y + 127
+		x2, y1 = x1 + 127, y2 - 8
+		if timer <= 0 then
+			del(_G.immediate, self)
+		else
+			timer -= dt
+		end
+	end,
+	draw = function(self)
+		local _ENV = self
+		rectfill(0, y1, 1024, y2, 0)
+		print(str, cam.x + cam.mx + offset, cam.y + cam.my + 122, 13)
+	end
+}
+
 local demilich = actor{
 	type = "enemy",
 	health = 3,
@@ -763,17 +760,19 @@ local demilich = actor{
 			return new_scene{
 				messages = {
 					demilich_dialog"no! you can't have it",
-					demilich_dialog"to think the star should\x0afall into the hands of a\x0awindshield monster...",
+					demilich_dialog"good thing i've hidden\x0athe star in a chest. you\x0awill never have it",
+					demilich_dialog"the star can never\x0afall into the hands of a\x0alowly monster like you...",
 				},
 				callback = function()
 					cam.shake_level = 1
 					boss_fight = false
 					boss_dead = true
 					music(1)
-					for coords in all(split("1,12;1,13;1,14;103,27;103,28;103,29;103,30", ";")) do
+					for coords in all(split("1,12;1,13;1,14;103,28;103,29;103,30", ";")) do
 						mset(unpack(split(coords))) -- implicit 0 conversion from nil?
 					end
 					del(foreground, self)
+					-- add(immediate, new_tip{ offset = 24, str = "skull door is now open" })
 				end
 			}
 		else
@@ -872,9 +871,7 @@ local demilich = actor{
 local spawnpoint = class{
 	init = function(self)
 		local _ENV = self
-		active_units = {}
-		target = pc
-		x, y = unpack(self)
+		active_units, target, x, y = {}, pc, unpack(self)
 	end,
 	spawn = function(self)
 		local _ENV = self
@@ -956,16 +953,16 @@ local goblin = actor{
 
 local new_potion = actor{
 	type = "potion",
-	sprite = { n = 80 },
+	sprite = { 80 },
 	sprites = {
-		{ n = 80 },
-		{ n = 81 },
-		{ n = 64 },
-		{ n = 81, flipy = true },
-		{ n = 80, flipy = true },
-		{ n = 81, flipx = true, flipy = true },
-		{ n = 64, flipx = true },
-		{ n = 81, flipx = true }
+		{ 80 },
+		{ 81 },
+		{ 64 },
+		{ 81, flipy = true },
+		{ 80, flipy = true },
+		{ 81, flipx = true, flipy = true },
+		{ 64, flipx = true },
+		{ 81, flipx = true }
 	},
 	activate = function(self, layer)
 		self:effect()
@@ -984,15 +981,13 @@ local new_potion = actor{
 			dy, y = 0, keep_the_change(y)
 			self:activate(layer)
 		elseif dy < 0 and check_ceiling(predictive_coords) then
-			dy = 0
-			y = ceil(y / 8) * 8
+			dy, y = 0, ceil(y / 8) * 8
 			self:activate(layer)
 		end
 
 		if abs(dx) > 0 and check_forward(predictive_coords, 1) then
 			local fn = dir == 1 and flr or ceil
-			dx = 0
-			x = fn(x / 8) * 8
+			dx, x = 0, fn(x / 8) * 8
 			self:activate(layer)
 		end
 
@@ -1011,7 +1006,7 @@ local new_potion = actor{
 	draw = function(self)
 		local _ENV = self
 		pal(12, col)
-		spr(sprite.n, x, y, 1, 1, sprite.flipx, sprite.flipy)
+		spr(sprite[1], x, y, 1, 1, sprite.flipx, sprite.flipy)
 		pal(12, 12)
 	end,
 }
@@ -1157,7 +1152,6 @@ local player = goblin{
 	type = "player",
 	max_health = 4,
 	health = 4,
-	invuln = 0,
 	accx = 15,
 	max_speed = 2.5,
 	jump_height = 0,
@@ -1170,12 +1164,9 @@ local player = goblin{
 	hurt = function(self, o)
 		local _ENV = self
 		o = o or {}
-		dx = o.dx or 5 * (o.x and sgn(x - o.x) or dir * -1)
-		dy = (o.dy or -3)
+		dx, dy, frozen, recoil = o.dx or 5 * (o.x and sgn(x - o.x) or dir * -1), (o.dy or -3), 0, true
 		health -= 1
 		invuln += 1
-		frozen = 0
-		recoil = true
 		self:set_anim"4"
 		if (o.dir) dir = o.dir
 		sfx"21"
@@ -1385,10 +1376,7 @@ local player = goblin{
 			pal{[0] = 0, unpack(split"1,2,3")}
 		end
 
-		if invuln > 0 then
-			invuln = max(0, invuln - dt)
-			if ((flr(time() * 24 % 24) + 1) % 4 == 0) draw_sprite = noop
-		end
+		check_invuln(self)
 
 		do
 			local has_potion, amount = potion_recipe and potions[potion_recipe] or nil, "\88" .. (potion and "1" or "0")
@@ -1699,8 +1687,8 @@ function _init()
 	title, last_checkpoint, flash, deaths, game_time, time_now, background, foreground, front, immediate = new_title(), "16,208", 0, 0, 0, 0, unpack(ui.layers)
 
 	pc = player{
-		-- x = 136,
-		-- y = 440,
+		-- x = 48,
+		-- y = 480,
 		x = 16,
 		y = 208,
 	}
@@ -1736,14 +1724,14 @@ function _init()
 		end,
 		draw = function(self)
 			pal(3, 5)
-			sspr(16, 32, 13, 16, 160, 232, 13, 16, true)
+			sspr(unpack(split"16,32,13,16,160,232,13,16,true"))
 			pal(3, 3)
 		end,
 	})
 	for coords in all(split("48,184;120,184;264,56;648,48;960,56;288,184;104,320", ";")) do
 		add(background, torch(split(coords)))
 	end
-	for coords in all(split("704,112;790,240;408,240;800,368;440,496", ";")) do
+	for coords in all(split("704,112;790,240;800,368;440,496", ";")) do
 		add(background, ratspawn(split(coords)))
 	end
 	add(background, ratspawn{ unit_type = rat{ max_stamina = 1.85 }, 720, 368 })
@@ -1753,22 +1741,6 @@ function _init()
 	add(background, batspawn{ unit_type = bat{ accy = 9 }, 552, 296 })
 	add(background, batspawn{ unit_type = bat{ accy = 7.5 }, 776, 440 })
 	add(foreground, demilich{ x = 90, y = 90 })
-	add(background, treasure_chest{
-		x = 443,
-		y = 360,
-		callback = function()
-			return new_scene{
-				messages = {
-					goober_dialog"there's some healing salve\x0ainside",
-					goober_dialog"i feel refreshed"
-				},
-				callback = function()
-					pc.health = min(pc.max_health, pc.health + 1)
-					last_checkpoint = "443,352"
-				end,
-			}
-		end
-	})
 	add(background, treasure_chest{
 		x = 952,
 		y = 232,
@@ -1798,6 +1770,8 @@ function _init()
 		y = 360,
 		flip = true,
 		callback = function()
+			mset(51, 30, 0)
+			add(background, ratspawn{ 408, 240 })
 			pc.potion_recipe, last_checkpoint = 1, "48,352"
 			add(pc.potions, blue_potion)
 			local demonstration = demonstration
@@ -1810,7 +1784,9 @@ function _init()
 						add(immediate, demonstration)
 					end),
 					goober_dialog("there! i need to summon\x0athis much! i should\x0aremember how it looks!", function() del(immediate, demonstration) end),
-					goober_dialog"this will chill enemies.\x0ait might even cool hot\x0asurfaces for a while",
+					goober_dialog("this will chill enemies.\x0ait might even cool hot\x0asurfaces for a while", function()
+						add(immediate, new_tip{ offset = 12, str = "\x97 to charge/throw potions" })
+					end),
 				}
 			}
 		end,
@@ -1833,23 +1809,7 @@ function _init()
 					end),
 					goober_dialog("there! i need to summon\x0athis much! i should\x0aremember how it looks!", function() del(immediate, demonstration) end),
 					goober_dialog("these will make short work\x0aof dungeon pests. it might\x0aeven break some weak walls", function()
-						add(immediate, class{
-							x1 = 0,
-							timer = 3,
-							update = function(self)
-								local _ENV = self
-								x1 = cam.x + cam.mx
-								if timer <= 0 then
-									del(_G.immediate, self)
-								else
-									timer -= dt
-								end
-							end,
-							draw = function(self)
-								rectfill(unpack(split"0,503,1200,511,0"))
-								print("\x83 \x94 to change potion", self.x1 + 24, 505, 13)
-							end
-						})
+						add(immediate, new_tip{ offset = 20, str = "\x83 \x94 to switch potion" })
 					end),
 				}
 			}
@@ -1865,6 +1825,8 @@ function _init()
 		add(background, water_generator(split(coords)))
 	end
 	add(background, shrine{ x = 928, y = 352 })
+	add(background, shrine{ x = 436, y = 352 })
+	add(background, shrine{ x = 732, y = 480 })
 	for x in all(split"12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,32,33,34,35,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,83,84,85,86,87,88,89,102,103,104,105,106,107,108,109,110,111,112,113") do
 		add(foreground, lavatile{ _x = x, _y = 63 })
 	end
